@@ -1,0 +1,17 @@
+name: teiko
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - pandas
+    - scipy
+    - matplotlib
+    - seaborn
+    - streamlit
+    - statsmodels
+    - plotly
+    - ipykernel
+    - jupyter
