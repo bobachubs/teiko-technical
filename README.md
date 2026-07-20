@@ -25,7 +25,7 @@ Tested with Python 3.11. All three commands are designed to run in GitHub Codesp
 ├── load_data.py          # Part 1 — schema DDL + CSV → SQLite ETL
 ├── analysis.py           # Parts 2–4 — all analytical functions
 ├── app.py                # Streamlit dashboard
-├── testing.ipynb         # Exploratory analysis notebook
+├── EDA.ipynb             # Exploratory data analysis notebook
 ├── cell-count.csv        # Source data
 ├── frequency_table.csv   # Output: per-sample cell population frequencies
 ├── boxplot_part3.png     # Output: responder vs non-responder boxplot
@@ -103,7 +103,7 @@ Functions are kept stateless (they take a connection and/or dataframe, return re
 
 **`app.py`** — Streamlit dashboard with four pages mirroring the four parts of the analysis. Uses `@st.cache_data` throughout to avoid redundant computation on navigation. Chart colors follow a consistent semantic palette (red = responders / active, gray = non-responders / healthy) defined once and reused across all plots.
 
-**`testing.ipynb`** — exploratory notebook used to understand the data structure, validate schema design decisions, and develop the statistical approach before formalizing into `analysis.py`.
+**`EDA.ipynb`** — exploratory notebook walking through the full analysis from raw data to results. Covers data structure validation, schema design rationale, EDA visualizations, and the statistical reasoning behind the test selection. Recommended reading alongside the dashboard for full context.
 
 ---
 
