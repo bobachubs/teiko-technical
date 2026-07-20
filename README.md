@@ -1,6 +1,6 @@
 # Teiko Bio — Clinical Trial Immune Cell Analysis
 
-Interactive dashboard and analysis pipeline for Bob Loblaw's clinical trial immune cell profiling data.
+Analysis pipeline and interactive dashboard for Bob Loblaw's clinical trial immune cell profiling data.
 
 **Live dashboard:** https://teiko-technical-sarah.streamlit.app/
 
@@ -14,7 +14,7 @@ make pipeline   # build database and run all analyses
 make dashboard  # launch the Streamlit app at http://localhost:8501
 ```
 
-Tested with Python 3.11. All three commands are designed to run in GitHub Codespaces without any manual steps.
+Tested with Python 3.11. Works in GitHub Codespaces with no additional setup.
 
 ---
 
@@ -65,45 +65,39 @@ projects  ──< subjects  ──< samples  ──< cell_counts
 | `samples` | `sample_id` | `subject_id`, `sample_type`, `time_from_treatment_start` |
 | `cell_counts` | `id` (autoincrement) | `sample_id`, `population`, `count` |
 
-**Why this structure?**
+**Design rationale**
 
-The raw CSV has one row per sample, with subject-level fields (`condition`, `sex`, `treatment`, `response`) repeated across every sample for that subject. Storing this flat would mean updating a subject's response status requires touching every one of their sample rows — a consistency risk. Splitting into `subjects` and `samples` normalizes that away.
+The raw CSV stores one row per sample, so subject-level fields (`condition`, `sex`, `treatment`, `response`) repeat across every sample for that subject. Keeping it flat means a single update to a subject's response status requires touching every one of their rows. Splitting into `subjects` and `samples` eliminates that redundancy.
 
-Cell counts are stored in **long format** (one row per population per sample) rather than five separate columns. This means adding a new cell population — NK subsets, regulatory T cells, etc. — requires no schema change, only new rows.
+Cell counts are stored in **long format** (one row per population per sample) rather than five separate columns — adding a new cell population requires no schema change, only new rows.
 
-`treatment` and `response` live on `subjects` rather than `samples` because they are constant per patient (confirmed in EDA: no subject ever has conflicting values across their samples).
+`treatment` and `response` live on `subjects` rather than `samples` because they're constant per patient, which I confirmed in EDA (no subject has conflicting values across their samples).
 
-**Indexes** are created on all foreign key columns (`project_id`, `subject_id`, `sample_id`) and on `cell_counts.population`, so common filter patterns (e.g., "all CD4 T cells from melanoma PBMC samples") hit indexes rather than full scans.
+**Indexes** are on all foreign key columns (`project_id`, `subject_id`, `sample_id`) and on `cell_counts.population`, so common filters (e.g., "all CD4 T cells from melanoma PBMC samples") hit indexes rather than full scans.
 
-**How this scales**
+**Scaling**
 
-With hundreds of projects, thousands of subjects, and millions of cell count rows, the design holds well for several reasons:
-
-- The `cell_counts` table grows linearly with samples × populations. At 5 populations per sample, a dataset with 1 million samples produces 5 million rows — well within SQLite's practical range, and straightforward to migrate to PostgreSQL if needed.
-- Analytical queries that group by `population` and join to `subjects` for filtering are fully covered by the existing indexes.
-- Adding new metadata (e.g., tissue site, batch ID) means adding a column to `subjects` or `samples` without touching `cell_counts`.
-- If query performance becomes a bottleneck, a pre-aggregated `frequencies` view (or materialized table) caching `percentage` per sample can be added without changing the base schema — this is essentially what `get_frequency_table()` computes on demand today.
-- For a true analytics-at-scale scenario (many concurrent users, sub-second dashboards), the normalized schema translates directly to a star schema in a columnar warehouse (BigQuery, Snowflake): `cell_counts` becomes the fact table; `projects`, `subjects`, and `samples` become dimension tables.
+The `cell_counts` table grows linearly with samples × populations — at 5 populations per sample, a million-sample dataset produces 5 million rows, which is well within SQLite's range and straightforward to migrate to PostgreSQL. Adding new metadata fields (tissue site, batch ID, etc.) means a column on `subjects` or `samples` with no changes to `cell_counts`. If query latency becomes a bottleneck, a pre-aggregated `frequencies` view can be layered on top without touching the base schema. For a full analytics-at-scale setup, the normalized schema maps directly to a star schema in BigQuery or Snowflake: `cell_counts` as the fact table, everything else as dimensions.
 
 ---
 
 ## Code structure
 
-**`load_data.py`** — self-contained ETL script. Defines the schema as a DDL string, creates the tables, then loads `cell-count.csv` into the four normalized tables using pandas. Idempotent when called via `make pipeline` (the Makefile deletes `teiko.db` first).
+**`load_data.py`** — ETL script. Defines the schema as a DDL string, creates the tables, then loads `cell-count.csv` into the four normalized tables using pandas. Running `make pipeline` deletes `teiko.db` first, so it's always a clean rebuild.
 
 **`analysis.py`** — all analytical logic, organized by part:
 
 - `get_frequency_table(con)` — Part 2: SQL window function computes total count per sample, then calculates each population's percentage.
 - `check_groups(freq_df, con)` — Part 3 support: prints group sizes and plots per-population distributions to assess statistical test assumptions.
 - `run_stats(freq_df, con)` — Part 3: Mann-Whitney U test (two-sided, α = 0.05) for each population; saves `boxplot_part3.png`.
-- `compare_tests(freq_df, con)` — Part 3 validation: runs Welch's t-test alongside Mann-Whitney to confirm findings are not an artefact of test choice.
+- `compare_tests(freq_df, con)` — Part 3 validation: runs Welch's t-test alongside Mann-Whitney to confirm the results hold regardless of test choice.
 - `run_subset(con)` — Part 4: baseline melanoma/miraclib/PBMC subset queries.
 
-Functions are kept stateless (they take a connection and/or dataframe, return results) so they compose cleanly and are independently testable. The `if __name__ == "__main__"` block runs the full pipeline and saves all outputs.
+Functions are stateless (connection and/or dataframe in, results out) so they're easy to test independently. The `if __name__ == "__main__"` block runs the full pipeline and saves all outputs.
 
 **`app.py`** — Streamlit dashboard with four pages mirroring the four parts of the analysis. Uses `@st.cache_data` throughout to avoid redundant computation on navigation. Chart colors follow a consistent semantic palette (red = responders / active, gray = non-responders / healthy) defined once and reused across all plots.
 
-**`EDA.ipynb`** — exploratory notebook walking through the full analysis from raw data to results. Covers data structure validation, schema design rationale, EDA visualizations, and the statistical reasoning behind the test selection. Recommended reading alongside the dashboard for full context.
+**`EDA.ipynb`** — exploratory notebook walking through the full analysis from raw data to results. Covers data structure validation, schema design decisions, EDA visualizations, and the reasoning behind the statistical test selection. Good to read alongside the dashboard.
 
 ---
 
@@ -115,4 +109,4 @@ Only **CD4 T cell frequency** is significantly different between responders and 
 - **B cells**: p = 0.056 — borderline, lower in responders, warrants further investigation
 - All other populations (CD8 T cells, NK cells, monocytes): no significant difference
 
-Results are consistent across both Mann-Whitney U and Welch's t-test for all five populations, confirming the finding is not driven by distributional assumptions or variance differences between groups.
+Results are consistent across both Mann-Whitney U and Welch's t-test for all five populations, so the finding holds regardless of which test is used.
