@@ -1,4 +1,5 @@
 import base64
+import os
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -462,6 +463,9 @@ footer,
 
 @st.cache_resource
 def get_connection():
+    if not os.path.exists("teiko.db"):
+        import load_data
+        load_data.load()
     return sqlite3.connect("teiko.db", check_same_thread=False)
 
 @st.cache_data
