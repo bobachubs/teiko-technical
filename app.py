@@ -961,9 +961,22 @@ elif page == "Statistical Analysis":
     )
     fig_trend.update_layout(**blayout(300))
     fig_trend.for_each_annotation(lambda a: a.update(
-        text=a.text.split("=")[-1].replace("_", " ")
+        text=a.text.split("=")[-1].replace("_", " "),
+        font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
     ))
-    fig_trend.update_yaxes(matches=None, showticklabels=True)
+    fig_trend.update_xaxes(
+        showgrid=False, showline=True, linecolor=_LINE, linewidth=1,
+        zeroline=False, ticks="outside", ticklen=4, tickcolor=_LINE,
+        tickfont=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+        title_font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+    )
+    fig_trend.update_yaxes(
+        matches=None, showticklabels=True,
+        showgrid=True, gridcolor=_GRID, gridwidth=1,
+        showline=False, zeroline=False,
+        tickfont=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+        title_font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+    )
     render_plotly(fig_trend)
     st.markdown(
         '<p class="obs-note">Most populations are stable across the three weekly draw timepoints. '
@@ -1015,10 +1028,23 @@ elif page == "Statistical Analysis":
     )
     fig_hist.update_layout(**blayout(290))
     fig_hist.for_each_annotation(lambda a: a.update(
-        text=a.text.split("=")[-1].replace("_", " ")
+        text=a.text.split("=")[-1].replace("_", " "),
+        font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
     ))
-    fig_hist.update_yaxes(matches=None, showticklabels=True)
-    fig_hist.update_xaxes(showticklabels=True)
+    fig_hist.update_xaxes(
+        showgrid=False, showline=True, linecolor=_LINE, linewidth=1,
+        zeroline=False, ticks="outside", ticklen=4, tickcolor=_LINE,
+        tickfont=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+        title_font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+        showticklabels=True,
+    )
+    fig_hist.update_yaxes(
+        matches=None, showticklabels=True,
+        showgrid=True, gridcolor=_GRID, gridwidth=1,
+        showline=False, zeroline=False,
+        tickfont=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+        title_font=dict(family=_FONT, size=11, color=_TEXT_SECONDARY),
+    )
     render_plotly(fig_hist)
 
     st.markdown(
