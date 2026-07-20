@@ -2,8 +2,9 @@ import base64
 import sqlite3
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.express as px
-from analysis import get_frequency_table, run_stats, run_subset
+from analysis import get_frequency_table, run_stats, run_subset, compare_tests
 
 pd.set_option("styler.render.max_elements", 500000)
 
@@ -66,7 +67,7 @@ footer,
 }}
 
 .block-container {{
-    padding-top: 0 !important;
+    padding-top: 72px !important;
     padding-bottom: 3rem !important;
     padding-left: 2.5rem !important;
     padding-right: 2.5rem !important;
@@ -77,18 +78,74 @@ footer,
 /* Scope the navbar to a keyed container. A global :first-of-type selector can
    accidentally style other st.columns rows and create dark chart backgrounds. */
 .st-key-top_nav {{
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
     background: var(--tb-nav) !important;
-    margin-left: -2.5rem !important;
-    margin-right: -2.5rem !important;
-    padding: 0 2.5rem !important;
+    padding: 0 max(2.5rem, calc((100vw - 1400px) / 2 + 2.5rem)) !important;
     border-bottom: 1px solid #27313B !important;
+    box-sizing: border-box !important;
+    transform: translateY(0);
+    transition: transform 0.22s ease !important;
+}}
+
+.st-key-top_nav.nav--hidden {{
+    transform: translateY(-100%) !important;
 }}
 
 .st-key-top_nav [data-testid="stHorizontalBlock"] {{
-    min-height: 64px !important;
+    display: flex !important;
     align-items: center !important;
-    gap: 0.25rem !important;
+    gap: 0 !important;
+    column-gap: 0 !important;
+    min-height: 64px !important;
     background: transparent !important;
+}}
+
+/* Strip all padding/margin from every column so Streamlit's internal widths
+   don't create uneven gutters. Flex rules below control sizing instead. */
+.st-key-top_nav [data-testid="stColumn"],
+.st-key-top_nav [data-testid="stColumn"] > div,
+.st-key-top_nav [data-testid="stColumn"] > div > div {{
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}}
+
+/* Logo column: fixed width (just enough for the SVG, no extra gap before Home) */
+.st-key-top_nav [data-testid="stColumn"]:first-child {{
+    flex: 0 0 160px !important;
+    width: 160px !important;
+}}
+
+/* Nav tab columns: auto basis so each tab starts at its natural content width,
+   then grows equally → every tab gets the same extra padding on each side */
+.st-key-top_nav [data-testid="stColumn"]:not(:first-child):not(:last-child) {{
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: min-content !important;
+    max-width: none !important;
+}}
+
+/* Trailing spacer: small fixed spacer so nav isn't flush-right */
+.st-key-top_nav [data-testid="stColumn"]:last-child {{
+    flex: 0 0 80px !important;
+    width: 80px !important;
+    min-width: 0 !important;
+}}
+
+/* stButton wrapper: fill the column completely */
+.st-key-top_nav [data-testid="stButton"] {{
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}}
+
+/* stVerticalBlock: strip gap so no space is inserted between the stHorizontalBlock and its wrapper */
+.st-key-top_nav [data-testid="stVerticalBlock"] {{
+    gap: 0 !important;
 }}
 
 .st-key-top_nav [data-testid="stButton"] > button {{
@@ -105,6 +162,8 @@ footer,
     font-weight: 600 !important;
     letter-spacing: 0.005em !important;
     white-space: nowrap !important;
+    text-align: center !important;
+    justify-content: center !important;
     transition: color 120ms ease, border-color 120ms ease, background 120ms ease !important;
 }}
 
@@ -151,49 +210,56 @@ footer,
     line-height: 0 !important;
 }}
 
-/* Type hierarchy: page title > section title > chart title > supporting copy. */
+/* Type hierarchy:
+   page-title  → all-caps Barlow 800, dark-gray (#454F5B), 3rem — dominant page label
+   section-title → all-caps Barlow 700, mid-gray (#637381), 1.25rem — section marker
+   page-sub    → Public Sans 400, mid-gray (#637381), 1rem — ambient descriptor
+   chart-title → Public Sans 600, muted-gray (#919EAB), 0.875rem — soft graph label */
+   
 .page-title {{
     margin: 0 0 0.55rem;
-    color: var(--tb-text);
-    font-family: 'Barlow', 'Public Sans', sans-serif;
-    font-size: clamp(2.2rem, 3.5vw, 2.75rem);
+    color: #454F5B;
+    font-family: 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 3rem;
     font-weight: 800;
-    letter-spacing: -0.04em;
-    line-height: 1.05;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    text-transform: uppercase;
 }}
 
 .page-sub {{
-    max-width: 780px;
     margin: 0 0 1.8rem;
-    color: var(--tb-text-secondary);
-    font-size: 1.05rem;
+    color: #637381;
+    font-family: 'Public Sans', -apple-system, sans-serif;
+    font-size: 1rem;
     font-weight: 400;
-    line-height: 1.65;
+    line-height: 1.5;
 }}
 
 .section-title {{
     margin: 0 0 0.9rem;
-    color: var(--tb-text);
-    font-family: 'Barlow', 'Public Sans', sans-serif;
-    font-size: 1.45rem;
+    color: #637381;
+    font-family: 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 1.25rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.25;
+    letter-spacing: 0.1em;
+    line-height: 1.5;
+    text-transform: uppercase;
 }}
 
 .chart-title {{
     margin: 0 0 0.45rem;
-    color: var(--tb-text);
-    font-size: 1.05rem;
+    color: #919EAB;
+    font-family: 'Public Sans', -apple-system, sans-serif;
+    font-size: 0.875rem;
     font-weight: 600;
-    letter-spacing: -0.005em;
-    line-height: 1.45;
+    letter-spacing: 0.01em;
+    line-height: 1.5714;
 }}
 
 .obs-note {{
     margin: 0.55rem 0 0;
-    padding: 0.8rem 0 0.1rem;
-    border-top: 1px solid var(--tb-border);
+    padding: 0.3rem 0 0.1rem;
     color: var(--tb-text-secondary);
     font-size: 0.8125rem;
     line-height: 1.6;
@@ -328,7 +394,7 @@ footer,
 /* Plotly: style only Streamlit's outer chart surface. Do not override Plotly's
    internal .plotly/.plot-container nodes; the figure layout owns those colors. */
 [data-testid="stPlotlyChart"] {{
-    overflow: hidden;
+    overflow: visible;
     padding: 0.35rem 0.5rem 0.15rem;
     background: var(--tb-surface) !important;
     border: 1px solid var(--tb-border);
@@ -374,10 +440,11 @@ footer,
     }}
 
     .st-key-top_nav {{
-        margin-left: -1rem !important;
-        margin-right: -1rem !important;
         padding: 0 1rem !important;
-        overflow-x: auto !important;
+    }}
+
+    .st-key-top_nav [data-testid="stVerticalBlock"] {{
+        overflow-x: auto;
     }}
 
     .st-key-top_nav [data-testid="stHorizontalBlock"] {{
@@ -385,7 +452,8 @@ footer,
     }}
 
     .page-title {{
-        font-size: 2rem;
+        font-size: 2.25rem;
+        letter-spacing: 0.04em;
     }}
 }}
 </style>
@@ -408,6 +476,38 @@ def load_stats(_con):
 def load_subset(_con):
     return run_subset(_con)
 
+@st.cache_data
+def load_group_sizes(_con):
+    return pd.read_sql_query("""
+        SELECT su.response,
+               COUNT(DISTINCT su.subject_id) AS n_subjects,
+               COUNT(s.sample_id)            AS n_samples
+        FROM samples s JOIN subjects su ON s.subject_id = su.subject_id
+        WHERE su.condition='melanoma' AND su.treatment='miraclib' AND s.sample_type='PBMC'
+        GROUP BY su.response
+    """, _con)
+
+@st.cache_data
+def load_time_trend(_con, _freq_df):
+    meta = pd.read_sql_query("""
+        SELECT s.sample_id AS sample, s.time_from_treatment_start AS timepoint,
+               su.response
+        FROM samples s JOIN subjects su ON s.subject_id = su.subject_id
+        WHERE su.condition='melanoma' AND su.treatment='miraclib' AND s.sample_type='PBMC'
+    """, _con)
+    trend = (
+        _freq_df.merge(meta, on="sample")
+        .groupby(["timepoint", "response", "population"])["percentage"]
+        .mean()
+        .reset_index(name="mean_pct")
+    )
+    trend["day"] = trend["timepoint"].astype(str)
+    return trend
+
+@st.cache_data
+def load_compare(_con, _freq_df):
+    return compare_tests(_freq_df, _con)
+
 
 con = get_connection()
 freq_df = load_freq()
@@ -415,7 +515,7 @@ freq_df = load_freq()
 # ── NAV ──
 # The key gives the navbar a stable CSS scope (`.st-key-top_nav`).
 with st.container(key="top_nav"):
-    nav_cols = st.columns([1.6] + [1] * len(pages) + [2.5])
+    nav_cols = st.columns([1.0] + [1] * len(pages) + [2.0])
     with nav_cols[0]:
         st.markdown(
             f'<img src="data:image/svg+xml;base64,{_logo_b64}" '
@@ -431,6 +531,39 @@ with st.container(key="top_nav"):
 
 st.markdown('<div style="height:1.15rem;"></div>', unsafe_allow_html=True)
 page = st.session_state.page
+
+# Inject scroll-hide logic via components.html (executes in an iframe that can
+# reach the Streamlit scroll container — [data-testid="stMain"] — via window.parent).
+components.html("""
+<script>
+(function () {
+    var win = window.parent;
+    if (win._teikoNavScroll) return;
+    win._teikoNavScroll = true;
+    var lastY = 0, ticking = false;
+    function update(container) {
+        var nav = win.document.querySelector('.st-key-top_nav');
+        if (!nav) { ticking = false; return; }
+        var y = (container === win) ? (win.scrollY || win.pageYOffset) : container.scrollTop;
+        if (y > lastY && y > 80) nav.classList.add('nav--hidden');
+        else nav.classList.remove('nav--hidden');
+        lastY = y; ticking = false;
+    }
+    function attach() {
+        var container = win.document.querySelector('[data-testid="stMain"]') || win;
+        container.addEventListener('scroll', function () {
+            if (!ticking) {
+                var self = this;
+                win.requestAnimationFrame(function () { update(self); });
+                ticking = true;
+            }
+        }, { passive: true });
+    }
+    if (win.document.readyState === 'complete') { attach(); }
+    else { win.addEventListener('load', attach); }
+})();
+</script>
+""", height=0)
 
 
 # ── CHART PALETTE — Teiko tokens ──
@@ -559,6 +692,14 @@ def fix_box_opacity(fig, color_map):
             trace.update(fillcolor=c, line=dict(color=c))
 
 
+def fix_pie_colors(fig, color_map):
+    """update_layout(template=...) can reset pie trace colors set by color_discrete_map.
+    Re-apply colors directly on marker after layout is applied."""
+    for trace in fig.data:
+        if hasattr(trace, "labels") and trace.labels is not None:
+            trace.marker.colors = [color_map.get(lbl, "#AAAAAA") for lbl in trace.labels]
+
+
 def render_plotly(fig):
     """Render Plotly consistently and suppress the dark floating modebar."""
     st.plotly_chart(
@@ -658,6 +799,9 @@ if page == "Home":
             hole=0.5,
         )
         fig4.update_layout(**playout(260))
+        # Build a label→color map from the sequence and data order
+        _samp_color_map = dict(zip(samp["sample_type"].tolist(), SAMPLE_COLORS))
+        fix_pie_colors(fig4, _samp_color_map)
         render_plotly(fig4)
 
     st.markdown(
@@ -728,13 +872,38 @@ elif page == "Statistical Analysis":
     st.markdown(
         '<p class="page-sub">'
         '<span class="tag">melanoma</span><span class="tag">miraclib</span>'
-        '<span class="tag">PBMC</span>'
-        '&nbsp; Cell population frequencies compared between response groups. '
-        'Mann-Whitney U, two-sided, α = 0.05.</p>',
+        '<span class="tag">PBMC</span><span class="tag">days 0 · 7 · 14</span>'
+        '&nbsp; Immune cell population frequencies compared between response groups '
+        'using Mann-Whitney U (two-sided, α = 0.05).</p>',
         unsafe_allow_html=True
     )
 
-    stats_df = load_stats(con)
+    stats_df  = load_stats(con)
+    cmp_df    = load_compare(con, freq_df)
+    trend_df  = load_time_trend(con, freq_df)
+    grp       = load_group_sizes(con)
+    g_yes     = grp[grp["response"] == "yes"].iloc[0]
+    g_no      = grp[grp["response"] == "no"].iloc[0]
+
+    # ── cohort overview cards ─────────────────────────────────────────────────
+    gc1, gc2, gc3, gc4, gc5 = st.columns(5)
+    for col, (val, lbl) in zip([gc1, gc2, gc3, gc4, gc5], [
+        (f'{int(g_yes["n_subjects"])}', "Responders"),
+        (f'{int(g_no["n_subjects"])}',  "Non-responders"),
+        (f'{int(g_yes["n_samples"])}',  "Responder samples"),
+        (f'{int(g_no["n_samples"])}',   "Non-resp. samples"),
+        ("3",                            "Timepoints (d 0·7·14)"),
+    ]):
+        with col:
+            st.markdown(
+                f'<div class="stat-card"><div class="stat-val">{val}</div>'
+                f'<div class="stat-label">{lbl}</div></div>',
+                unsafe_allow_html=True
+            )
+
+    # ── distribution overview ─────────────────────────────────────────────────
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Distribution overview</p>', unsafe_allow_html=True)
 
     plot_df = freq_df.merge(
         pd.read_sql_query("""
@@ -743,8 +912,7 @@ elif page == "Statistical Analysis":
             WHERE su.condition='melanoma' AND su.treatment='miraclib' AND s.sample_type='PBMC'
         """, con), on="sample"
     )
-
-    st.markdown('<p class="chart-title">Cell population frequency by response group</p>', unsafe_allow_html=True)
+    st.markdown('<p class="chart-title">Cell population frequency by response group — all timepoints</p>', unsafe_allow_html=True)
     fig = px.box(
         plot_df, x="population", y="percentage", color="response",
         color_discrete_map=RESP_COLORS,
@@ -752,17 +920,57 @@ elif page == "Statistical Analysis":
         category_orders={"population": ["b_cell","cd8_t_cell","cd4_t_cell","nk_cell","monocyte"]},
         points=False,
     )
-    fig.update_layout(**blayout(400))
+    fig.update_layout(**blayout(380))
     fix_box_opacity(fig, RESP_COLORS)
     render_plotly(fig)
-
     st.markdown(
-        '<p class="obs-note">Distributions are approximately normal but slightly leptokurtic. '
-        'Mann-Whitney U was chosen for robustness to non-normality and outliers. '
-        'Welch\'s t-test gives consistent significance conclusions across all five populations.</p>',
+        '<p class="obs-note">Distributions are approximately normal but slightly leptokurtic across all populations. '
+        'Groups are well-balanced — '
+        f'{int(g_yes["n_subjects"])} responders ({int(g_yes["n_samples"])} samples) vs '
+        f'{int(g_no["n_subjects"])} non-responders ({int(g_no["n_samples"])} samples) — '
+        'so statistical power is not a concern. CD4 T cells show the clearest separation between groups; '
+        'B cells trend lower in responders but fall just short of significance (p = 0.056).</p>',
         unsafe_allow_html=True
     )
 
+    # ── cell counts over time ─────────────────────────────────────────────────
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Cell counts over time</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="chart-title">Mean % per population · days 0, 7, 14 · responders vs non-responders</p>',
+        unsafe_allow_html=True
+    )
+    pop_order = ["b_cell", "cd8_t_cell", "cd4_t_cell", "nk_cell", "monocyte"]
+    fig_trend = px.line(
+        trend_df,
+        x="day", y="mean_pct",
+        color="response",
+        facet_col="population",
+        color_discrete_map=RESP_COLORS,
+        markers=True,
+        category_orders={
+            "response":   ["yes", "no"],
+            "day":        ["0", "7", "14"],
+            "population": pop_order,
+        },
+        labels={"day": "day", "mean_pct": "mean %", "response": "", "population": ""},
+    )
+    fig_trend.update_layout(**blayout(300))
+    fig_trend.for_each_annotation(lambda a: a.update(
+        text=a.text.split("=")[-1].replace("_", " ")
+    ))
+    fig_trend.update_yaxes(matches=None, showticklabels=True)
+    render_plotly(fig_trend)
+    st.markdown(
+        '<p class="obs-note">Most populations are stable across the three weekly draw timepoints. '
+        'CD4 T cell frequency remains consistently higher in responders from day 0 onward, '
+        'indicating this is a pre-existing characteristic rather than a treatment-induced change '
+        'within the 14-day observation window. No population shows a clear directional trajectory '
+        'that would suggest the 14-day window is insufficient to capture the relevant biology.</p>',
+        unsafe_allow_html=True
+    )
+
+    # ── statistical results ────────────────────────────────────────────────────
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
     st.markdown('<p class="section-title">Mann-Whitney U results</p>', unsafe_allow_html=True)
 
@@ -779,6 +987,70 @@ elif page == "Statistical Analysis":
                     f'</div>',
                     unsafe_allow_html=True
                 )
+
+    # ── test selection rationale ──────────────────────────────────────────────
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Test selection rationale</p>', unsafe_allow_html=True)
+
+    st.markdown(
+        '<p class="chart-title">Frequency distributions by response — overlaid histograms, all timepoints</p>',
+        unsafe_allow_html=True
+    )
+    fig_hist = px.histogram(
+        plot_df,
+        x="percentage", color="response",
+        facet_col="population", nbins=25,
+        barmode="overlay", opacity=0.6,
+        color_discrete_map=RESP_COLORS,
+        histnorm="probability density",
+        category_orders={
+            "response":   ["yes", "no"],
+            "population": ["b_cell","cd8_t_cell","cd4_t_cell","nk_cell","monocyte"],
+        },
+        labels={"percentage": "% of total", "response": "", "population": ""},
+    )
+    fig_hist.update_layout(**blayout(290))
+    fig_hist.for_each_annotation(lambda a: a.update(
+        text=a.text.split("=")[-1].replace("_", " ")
+    ))
+    fig_hist.update_yaxes(matches=None, showticklabels=True)
+    fig_hist.update_xaxes(showticklabels=True)
+    render_plotly(fig_hist)
+
+    st.markdown(
+        '<p class="obs-note" style="margin-bottom:1.1rem;">'
+        '<strong>Normality</strong> — Histograms show approximately bell-shaped distributions for '
+        'most populations, but with moderately heavier tails than a normal distribution '
+        '(leptokurtosis), and slight right-skew in B cells and NK cells. '
+        'CD4 T cells show the clearest separation between groups, with the responder distribution '
+        'shifted notably higher. '
+        'These deviations from normality favour a rank-based test over a parametric one.<br><br>'
+        '<strong>Independence</strong> — Each data point is one sample from one subject at one '
+        'timepoint. Three timepoints per subject introduce within-subject correlation, but the '
+        'time-series analysis shows stable trajectories with no systematic trend, so treating '
+        'measurements as independent observations is a reasonable approximation for this dataset size.<br><br>'
+        '<strong>Equal variance</strong> — No equality-of-variance assumption is made: '
+        'Mann-Whitney tests for stochastic dominance rather than mean differences, and the '
+        'Welch\'s t-test comparison (which explicitly corrects for unequal variances) reaches '
+        'identical significance conclusions across all five populations — confirming the inference '
+        'is not driven by heteroscedasticity. Mann-Whitney p-values are slightly smaller for '
+        'B cells (0.056 vs 0.171 for Welch\'s), consistent with its better power when tail '
+        'shapes differ between groups.</p>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<p class="chart-title">Mann-Whitney vs Welch\'s t-test — p-value comparison</p>',
+        unsafe_allow_html=True
+    )
+    cmp_display = cmp_df[[
+        "population", "responder_median", "non_responder_median",
+        "p_mannwhitney", "p_welch", "consistent"
+    ]].copy()
+    cmp_display.columns = [
+        "Population", "Responder median", "Non-resp. median",
+        "p (Mann-Whitney)", "p (Welch's)", "Consistent"
+    ]
+    st.dataframe(cmp_display, use_container_width=True, hide_index=True)
 
 
 # ── SUBSET ANALYSIS ───────────────────────────────────────────────────────────
@@ -816,6 +1088,7 @@ elif page == "Subset Analysis":
             hole=0.52, color_discrete_map=RESP_PIE_COLORS,
         )
         fr.update_layout(**playout(240))
+        fix_pie_colors(fr, RESP_PIE_COLORS)
         render_plotly(fr)
 
     with c3:
@@ -825,6 +1098,7 @@ elif page == "Subset Analysis":
             hole=0.52, color_discrete_map=SEX_COLORS,
         )
         fs.update_layout(**playout(240))
+        fix_pie_colors(fs, SEX_COLORS)
         render_plotly(fs)
 
     st.markdown(
