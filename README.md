@@ -2,7 +2,7 @@
 
 Interactive dashboard and analysis pipeline for Bob Loblaw's clinical trial immune cell profiling data.
 
-**Live dashboard:** _[deploy to Streamlit Cloud and paste URL here]_
+**Live dashboard:** https://teiko-technical-sarah.streamlit.app/
 
 ---
 
